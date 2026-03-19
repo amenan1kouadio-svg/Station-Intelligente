@@ -1,239 +1,911 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard IoT — Station M2 CIO</title>
-  <!-- Bootstrap 5 (responsive — Section 3.4.1 du sujet) -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-  <!-- Chart.js (graphiques interactifs — Section 3.4.1) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <link rel="stylesheet" href="css/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Station Météo IoT — M2 CIO</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ─── VARIABLES ─────────────────────────────────────────── */
+  :root {
+    --bg:        #0a0e1a;
+    --surface:   #111827;
+    --card:      #1a2235;
+    --border:    #1e2d45;
+    --accent:    #00d4ff;
+    --accent2:   #7c3aed;
+    --green:     #10b981;
+    --orange:    #f59e0b;
+    --red:       #ef4444;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --font-mono: 'Space Mono', monospace;
+    --font-body: 'DM Sans', sans-serif;
+  }
+
+  /* ─── RESET & BASE ──────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── BACKGROUND GRID ───────────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── HEADER ────────────────────────────────────────────── */
+  header {
+    position: relative; z-index: 10;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,14,26,0.95);
+    backdrop-filter: blur(10px);
+    padding: 0 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+    position: sticky; top: 0;
+  }
+  .logo {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+  .logo span { color: var(--muted); }
+  .header-right {
+    display: flex; align-items: center; gap: 1.5rem;
+  }
+  .status-dot {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.75rem; color: var(--muted);
+    font-family: var(--font-mono);
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s infinite;
+  }
+  .dot.offline { background: var(--red); box-shadow: 0 0 8px var(--red); animation: none; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.85); }
+  }
+  #last-update {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  /* ─── MAIN LAYOUT ───────────────────────────────────────── */
+  main {
+    position: relative; z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+
+  /* ─── SECTION TITLE ─────────────────────────────────────── */
+  .section-title {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    display: flex; align-items: center; gap: 0.75rem;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1; height: 1px;
+    background: linear-gradient(90deg, var(--border), transparent);
+  }
+
+  /* ─── SENSOR GRID ───────────────────────────────────────── */
+  .sensors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  /* ─── SENSOR CARD ───────────────────────────────────────── */
+  .sensor-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, transform 0.2s;
+    cursor: default;
+  }
+  .sensor-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .sensor-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .sensor-card:hover::before { opacity: 1; }
+
+  .card-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.75rem;
+    display: block;
+  }
+  .card-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: var(--font-mono);
+    margin-bottom: 0.5rem;
+  }
+  .card-value {
+    font-family: var(--font-mono);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+    transition: color 0.3s;
+  }
+  .card-unit {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-left: 0.25rem;
+  }
+  .card-status {
+    margin-top: 0.75rem;
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    padding: 0.2rem 0.6rem;
+    border-radius: 99px;
+    display: inline-block;
+  }
+  .status-ok    { background: rgba(16,185,129,0.15); color: var(--green); }
+  .status-warn  { background: rgba(245,158,11,0.15); color: var(--orange); }
+  .status-alert { background: rgba(239,68,68,0.15);  color: var(--red); }
+
+  /* Alerte clignotante */
+  .sensor-card.alert-active {
+    border-color: var(--red);
+    animation: alertBlink 1s ease-in-out infinite alternate;
+  }
+  @keyframes alertBlink {
+    from { box-shadow: none; }
+    to   { box-shadow: 0 0 20px rgba(239,68,68,0.3); }
+  }
+
+  /* ─── CHARTS GRID ───────────────────────────────────────── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+  }
+  .chart-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.25rem;
+  }
+  .chart-title {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .chart-period {
+    display: flex; gap: 0.5rem;
+  }
+  .period-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .period-btn:hover, .period-btn.active {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+  canvas { width: 100% !important; }
+
+  /* ─── BOTTOM ROW ────────────────────────────────────────── */
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  @media (max-width: 768px) {
+    .bottom-grid { grid-template-columns: 1fr; }
+    .charts-grid { grid-template-columns: 1fr; }
+    .sensors-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ─── ALERTS PANEL ──────────────────────────────────────── */
+  .alerts-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+  }
+  .alert-item {
+    display: flex; align-items: flex-start; gap: 0.75rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+    animation: slideIn 0.3s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .alert-item:last-child { border-bottom: none; }
+  .alert-badge {
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+  .alert-time {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--muted);
+    margin-top: 0.2rem;
+  }
+  #no-alerts {
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 2rem 0;
+    font-family: var(--font-mono);
+  }
+
+  /* ─── THRESHOLDS PANEL ──────────────────────────────────── */
+  .thresholds-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+  }
+  .threshold-row {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+  }
+  .threshold-row:last-child { border-bottom: none; }
+  .threshold-label {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .threshold-input {
+    width: 80px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.3rem 0.5rem;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    text-align: center;
+    transition: border-color 0.2s;
+  }
+  .threshold-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .threshold-unit {
+    font-size: 0.7rem;
+    color: var(--muted);
+    width: 30px;
+  }
+
+  /* ─── EXPORT BAR ────────────────────────────────────────── */
+  .export-bar {
+    display: flex; gap: 1rem; flex-wrap: wrap;
+    margin-bottom: 2rem;
+    align-items: center;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+  }
+  .btn-primary:hover { background: #00b8d9; transform: translateY(-1px); }
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ─── LOADING ───────────────────────────────────────────── */
+  .loading {
+    display: flex; align-items: center; justify-content: center;
+    height: 100px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    gap: 0.5rem;
+  }
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── COMFORT METER ─────────────────────────────────────── */
+  .comfort-bar {
+    height: 8px;
+    border-radius: 99px;
+    background: linear-gradient(90deg, var(--green), var(--orange), var(--red));
+    position: relative;
+    margin: 0.75rem 0 0.5rem;
+  }
+  .comfort-needle {
+    position: absolute;
+    top: -4px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--text);
+    border: 2px solid var(--bg);
+    transform: translateX(-50%);
+    transition: left 1s ease;
+    box-shadow: 0 0 8px rgba(255,255,255,0.3);
+  }
+</style>
 </head>
 <body>
 
-<!-- ── NAVBAR ────────────────────────────────────────────────── -->
-<nav class="navbar navbar-dark bg-primary px-3">
-  <span class="navbar-brand fw-bold">
-    🌡 Station IoT M2 CIO
-  </span>
-  <div class="d-flex align-items-center gap-3">
-    <span id="status-badge" class="badge bg-secondary">Connexion...</span>
-    <span id="last-update" class="text-white-50 small">—</span>
-  </div>
-</nav>
-
-<!-- ── FILTRES PÉRIODE ───────────────────────────────────────── -->
-<div class="container-fluid px-4 mt-3">
-  <div class="d-flex gap-2 align-items-center flex-wrap mb-3">
-    <span class="text-muted small me-2">Période :</span>
-    <button class="btn btn-sm btn-outline-primary active" onclick="setPeriod('24h', this)">24h</button>
-    <button class="btn btn-sm btn-outline-primary"        onclick="setPeriod('7j',  this)">7 jours</button>
-    <button class="btn btn-sm btn-outline-primary"        onclick="setPeriod('30j', this)">30 jours</button>
-    <div class="ms-auto d-flex gap-2">
-      <button class="btn btn-sm btn-outline-success" onclick="doExportCSV()">⬇ CSV</button>
-      <button class="btn btn-sm btn-outline-info"    onclick="doExportJSON()">⬇ JSON</button>
-      <a class="btn btn-sm btn-outline-secondary"
-         id="ts-public-link"
-         href="#" target="_blank">📊 ThingSpeak</a>
+<!-- ═══ HEADER ══════════════════════════════════════════════ -->
+<header>
+  <div class="logo">STATION<span>/</span>IoT <span style="color:var(--accent2)">M2·CIO</span></div>
+  <div class="header-right">
+    <div id="last-update">--:--:--</div>
+    <div class="status-dot">
+      <div class="dot" id="conn-dot"></div>
+      <span id="conn-label">CONNEXION...</span>
     </div>
   </div>
+</header>
 
-  <!-- ── CARTES CAPTEURS (temps réel) ─────────────────────────── -->
-  <div class="row g-3 mb-4" id="sensor-cards">
-    <div class="col-6 col-md-3">
-      <div class="sensor-card" id="card-temp">
-        <div class="sensor-icon">🌡</div>
-        <div class="sensor-value" id="val-temp">--</div>
-        <div class="sensor-unit">°C</div>
-        <div class="sensor-label">Température</div>
-        <div class="sensor-bar"><div class="sensor-fill" id="bar-temp"></div></div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="sensor-card" id="card-hum">
-        <div class="sensor-icon">💧</div>
-        <div class="sensor-value" id="val-hum">--</div>
-        <div class="sensor-unit">%</div>
-        <div class="sensor-label">Humidité</div>
-        <div class="sensor-bar"><div class="sensor-fill" id="bar-hum"></div></div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="sensor-card" id="card-co2">
-        <div class="sensor-icon">🌫</div>
-        <div class="sensor-value" id="val-co2">--</div>
-        <div class="sensor-unit">ppm</div>
-        <div class="sensor-label">Qualité Air</div>
-        <div class="sensor-bar"><div class="sensor-fill" id="bar-co2"></div></div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="sensor-card comfort-card" id="card-comfort">
-        <div class="sensor-icon">😊</div>
-        <div class="sensor-value" id="val-comfort">--</div>
-        <div class="sensor-unit">/100</div>
-        <div class="sensor-label">Indice Confort</div>
-        <div class="sensor-bar"><div class="sensor-fill" id="bar-comfort"></div></div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="sensor-card" id="card-pres">
-        <div class="sensor-icon">🔵</div>
-        <div class="sensor-value" id="val-pres">--</div>
-        <div class="sensor-unit">hPa</div>
-        <div class="sensor-label">Pression</div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="sensor-card" id="card-light">
-        <div class="sensor-icon">💡</div>
-        <div class="sensor-value" id="val-light">--</div>
-        <div class="sensor-unit">lux</div>
-        <div class="sensor-label">Luminosité</div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="sensor-card" id="card-sound">
-        <div class="sensor-icon">🔊</div>
-        <div class="sensor-value" id="val-sound">--</div>
-        <div class="sensor-unit">dB</div>
-        <div class="sensor-label">Son</div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="sensor-card" id="card-motion">
-        <div class="sensor-icon">👁</div>
-        <div class="sensor-value" id="val-motion">--</div>
-        <div class="sensor-unit"></div>
-        <div class="sensor-label">Mouvement</div>
-      </div>
-    </div>
+<!-- ═══ MAIN ════════════════════════════════════════════════ -->
+<main>
+
+  <!-- CAPTEURS EN TEMPS RÉEL -->
+  <div class="section-title">Capteurs en temps réel</div>
+  <div class="sensors-grid" id="sensors-grid">
+    <div class="loading"><div class="spinner"></div> Chargement...</div>
   </div>
 
-  <!-- ── GRAPHIQUES ────────────────────────────────────────────── -->
-  <div class="row g-3 mb-4">
-    <div class="col-12 col-lg-6">
-      <div class="chart-card">
+  <!-- EXPORT -->
+  <div class="export-bar">
+    <button class="btn btn-primary" onclick="exportCSV()">⬇ Export CSV</button>
+    <button class="btn btn-secondary" onclick="exportJSON()">⬇ Export JSON</button>
+    <button class="btn btn-secondary" onclick="refreshData()">↻ Actualiser</button>
+    <span style="font-family:var(--font-mono);font-size:0.7rem;color:var(--muted);margin-left:auto">
+      Auto-refresh : 20s
+    </span>
+  </div>
+
+  <!-- GRAPHIQUES -->
+  <div class="section-title">Historique</div>
+  <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap">
+    <button class="period-btn active" onclick="setPeriod(24,this)">24h</button>
+    <button class="period-btn" onclick="setPeriod(168,this)">7j</button>
+    <button class="period-btn" onclick="setPeriod(720,this)">30j</button>
+  </div>
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-header">
         <div class="chart-title">Température & Humidité</div>
-        <canvas id="chart-temp-hum" height="200"></canvas>
       </div>
+      <canvas id="chart-th" height="180"></canvas>
     </div>
-    <div class="col-12 col-lg-6">
-      <div class="chart-card">
-        <div class="chart-title">Qualité de l'Air (CO2)</div>
-        <canvas id="chart-co2" height="200"></canvas>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Qualité de l'air (CO2)</div>
       </div>
+      <canvas id="chart-co2" height="180"></canvas>
     </div>
-    <div class="col-12 col-lg-6">
-      <div class="chart-card">
-        <div class="chart-title">Luminosité & Son</div>
-        <canvas id="chart-light-sound" height="200"></canvas>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Luminosité</div>
       </div>
+      <canvas id="chart-lux" height="180"></canvas>
     </div>
-    <div class="col-12 col-lg-6">
-      <div class="chart-card">
-        <div class="chart-title">Indice de Confort (tendance)</div>
-        <canvas id="chart-comfort" height="200"></canvas>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Indice de Confort</div>
       </div>
-    </div>
-  </div>
-
-  <!-- ── ALERTES ───────────────────────────────────────────────── -->
-  <div class="row mb-4">
-    <div class="col-12">
-      <div class="alert-panel">
-        <div class="alert-panel-title">⚠ Alertes actives</div>
-        <div id="alerts-list" class="alerts-list">
-          <span class="text-muted small">Chargement...</span>
-        </div>
-      </div>
+      <canvas id="chart-comfort" height="180"></canvas>
     </div>
   </div>
 
-  <!-- ── COMPARAISON ───────────────────────────────────────────── -->
-  <div class="row mb-4">
-    <div class="col-12">
-      <div class="compare-panel">
-        <div class="compare-title">📊 Actuelles vs Moyennes historiques</div>
-        <table class="table table-sm compare-table">
-          <thead><tr>
-            <th>Capteur</th><th>Valeur actuelle</th><th>Moyenne période</th><th>Écart</th>
-          </tr></thead>
-          <tbody id="compare-tbody">
-            <tr><td colspan="4" class="text-muted text-center small">Chargement...</td></tr>
-          </tbody>
-        </table>
+  <!-- ALERTES + SEUILS -->
+  <div class="section-title">Alertes & Configuration</div>
+  <div class="bottom-grid">
+
+    <!-- Alertes -->
+    <div class="alerts-panel">
+      <div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--accent);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.1em">
+        Journal des alertes
+      </div>
+      <div id="alerts-list">
+        <div id="no-alerts">Aucune alerte active</div>
       </div>
     </div>
+
+    <!-- Seuils configurables -->
+    <div class="thresholds-panel">
+      <div style="font-family:var(--font-mono);font-size:0.75rem;color:var(--accent);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.1em">
+        Seuils d'alerte configurables
+      </div>
+      <div class="threshold-row">
+        <div class="threshold-label">Température max</div>
+        <input class="threshold-input" type="number" id="th-temp" value="35">
+        <div class="threshold-unit">°C</div>
+      </div>
+      <div class="threshold-row">
+        <div class="threshold-label">Humidité min</div>
+        <input class="threshold-input" type="number" id="th-hum" value="30">
+        <div class="threshold-unit">%</div>
+      </div>
+      <div class="threshold-row">
+        <div class="threshold-label">CO2 max</div>
+        <input class="threshold-input" type="number" id="th-co2" value="1000">
+        <div class="threshold-unit">ppm</div>
+      </div>
+      <div class="threshold-row">
+        <div class="threshold-label">Luminosité min</div>
+        <input class="threshold-input" type="number" id="th-lux" value="100">
+        <div class="threshold-unit">lux</div>
+      </div>
+      <div class="threshold-row">
+        <div class="threshold-label">Son max</div>
+        <input class="threshold-input" type="number" id="th-son" value="80">
+        <div class="threshold-unit">dB</div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:1rem;width:100%;justify-content:center"
+              onclick="saveThresholds()">Enregistrer les seuils</button>
+    </div>
+
   </div>
+</main>
 
-</div><!-- /container -->
-
-<footer class="text-center text-muted small py-3 border-top mt-4">
-  M2 CIO — Station IoT Multi-Capteurs | Dr. ATTA A. Ferdinand | 2025-2026
-  | <a href="https://thingspeak.com" target="_blank">ThingSpeak</a>
-  | <a href="https://make.com" target="_blank">Make.com</a>
-</footer>
-
-<!-- Scripts -->
-<script src="config.js"></script>
-<script src="js/api.js"></script>
-<script src="js/charts.js"></script>
-<script src="js/alerts.js"></script>
+<!-- ═══ JAVASCRIPT ═══════════════════════════════════════════ -->
 <script>
-// ================================================================
-// INITIALISATION ET BOUCLE DE RAFRAÎCHISSEMENT
-// ================================================================
-let currentPeriod = '24h';
-let lastFeeds     = [];
+// ─── CONFIG ──────────────────────────────────────────────────
+const CHANNEL_ID  = '3305035';
+const READ_KEY    = 'BVIVVL8YMYRN9P28';
+const BASE_URL    = `https://api.thingspeak.com/channels/${CHANNEL_ID}`;
+const REFRESH_MS  = 20000;
+
+// ─── ÉTAT ─────────────────────────────────────────────────────
+let lastData      = null;
+let historyData   = [];
+let alerts        = [];
 let charts        = {};
+let currentPeriod = 24; // heures
 
-// Lien public ThingSpeak
-document.getElementById('ts-public-link').href =
-  `https://thingspeak.com/channels/${CONFIG.CHANNEL_ID}`;
+let thresholds = {
+  temp : 35,
+  hum  : 30,
+  co2  : 1000,
+  lux  : 100,
+  son  : 80
+};
 
-async function refreshAll() {
-  // 1. Dernière valeur (temps réel)
-  const last = await API.getLast();
-  if (last) {
-    const d = API.parseEntry(last);
-    updateCards(d);
-    checkAlerts(d);
-    document.getElementById('last-update').textContent =
-      'Mis à jour : ' + d.time.toLocaleTimeString('fr-FR');
-    document.getElementById('status-badge').className = 'badge bg-success';
-    document.getElementById('status-badge').textContent = 'Connecté';
-  } else {
-    document.getElementById('status-badge').className = 'badge bg-danger';
-    document.getElementById('status-badge').textContent = 'Hors ligne';
-  }
+// ─── DÉFINITION DES CAPTEURS ──────────────────────────────────
+const SENSORS = [
+  { key:'field1', icon:'🌡️', label:'Température',    unit:'°C',  dec:1, thKey:'temp',  hi:true  },
+  { key:'field2', icon:'💧', label:'Humidité',        unit:'%',   dec:1, thKey:'hum',   hi:false },
+  { key:'field3', icon:'🔵', label:'Pression',        unit:'hPa', dec:1, thKey:null              },
+  { key:'field4', icon:'🌫️', label:'Qualité air',     unit:'ppm', dec:0, thKey:'co2',   hi:true  },
+  { key:'field5', icon:'💡', label:'Luminosité',      unit:'lux', dec:0, thKey:'lux',   hi:false },
+  { key:'field6', icon:'🔊', label:'Niveau sonore',   unit:'dB',  dec:0, thKey:'son',   hi:true  },
+  { key:'field7', icon:'🚨', label:'Mouvement PIR',   unit:'',    dec:0, thKey:null              },
+  { key:'field8', icon:'🏠', label:'Indice Confort',  unit:'',    dec:2, thKey:null              },
+];
 
-  // 2. Historique pour graphiques et comparaison
-  const hist = await API.getForPeriod(currentPeriod);
-  if (hist && hist.feeds) {
-    lastFeeds = hist.feeds;
-    updateCharts(hist.feeds, charts);
-    updateComparison(hist.feeds);
+// ─── FETCH DERNIÈRE DONNÉE ────────────────────────────────────
+async function fetchLast() {
+  try {
+    const url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds/last.json?api_key=${READ_KEY}&timezone=Africa/Abidjan`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    console.log('[fetchLast] Données reçues:', data);
+    setOnline();
+    return data;
+  } catch(e) {
+    console.error('[fetchLast] Erreur:', e.message);
+    setOffline();
+    return null;
   }
 }
 
-function setPeriod(period, btn) {
-  currentPeriod = period;
-  document.querySelectorAll('.btn-outline-primary').forEach(b => b.classList.remove('active'));
+// ─── FETCH HISTORIQUE ─────────────────────────────────────────
+async function fetchHistory(hours) {
+  const results = Math.min(hours * 3, 8000);
+  try {
+    const url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${READ_KEY}&results=${results}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    console.log('[fetchHistory] Points reçus:', d.feeds ? d.feeds.length : 0);
+    return d.feeds || [];
+  } catch(e) {
+    console.error('[fetchHistory] Erreur:', e.message);
+    return [];
+  }
+}
+
+// ─── MISE À JOUR DES CARTES ───────────────────────────────────
+function renderCards(data) {
+  const grid = document.getElementById('sensors-grid');
+  grid.innerHTML = '';
+
+  SENSORS.forEach(s => {
+    const raw = parseFloat(data[s.key]);
+    const val = isNaN(raw) ? null : raw;
+    const display = val !== null
+      ? (s.key === 'field7' ? (val > 0 ? 'OUI' : 'NON') : val.toFixed(s.dec))
+      : '--';
+
+    // Calcul statut
+    let statusClass = 'status-ok';
+    let statusText  = 'Normal';
+    let isAlert     = false;
+
+    if (val !== null && s.thKey) {
+      const th = thresholds[s.thKey];
+      if (s.hi  && val > th) { statusClass = 'status-alert'; statusText = 'ALERTE'; isAlert = true; }
+      if (!s.hi && val < th) { statusClass = 'status-alert'; statusText = 'ALERTE'; isAlert = true; }
+    }
+
+    // Indice confort spécial
+    if (s.key === 'field8' && val !== null) {
+      if      (val < 21) { statusClass='status-ok';   statusText='Confortable'; }
+      else if (val < 24) { statusClass='status-warn';  statusText='Légèrement inconf.'; }
+      else if (val < 27) { statusClass='status-warn';  statusText='Inconfortable'; }
+      else               { statusClass='status-alert'; statusText='Très inconf.'; }
+    }
+
+    const card = document.createElement('div');
+    card.className = `sensor-card${isAlert ? ' alert-active' : ''}`;
+    card.innerHTML = `
+      <span class="card-icon">${s.icon}</span>
+      <div class="card-label">${s.label}</div>
+      <div class="card-value">${display}<span class="card-unit">${s.unit}</span></div>
+      ${s.key === 'field8' && val !== null ? comfortBar(val) : ''}
+      <div class="card-status ${statusClass}">${statusText}</div>
+    `;
+    grid.appendChild(card);
+
+    if (isAlert) addAlert(s.label, val, s.unit, s.thKey);
+  });
+
+  // Heure dernière mise à jour
+  const ts = new Date(data.created_at);
+  document.getElementById('last-update').textContent =
+    ts.toLocaleTimeString('fr-FR');
+}
+
+function comfortBar(val) {
+  const pct = Math.min(Math.max((val - 15) / 20 * 100, 0), 100);
+  return `<div class="comfort-bar"><div class="comfort-needle" style="left:${pct}%"></div></div>`;
+}
+
+// ─── ALERTES ──────────────────────────────────────────────────
+function addAlert(label, val, unit, thKey) {
+  const key = `${label}-${Math.floor(Date.now()/60000)}`; // 1 par minute par capteur
+  if (alerts.find(a => a.key === key)) return;
+
+  const th = thresholds[thKey];
+  alerts.unshift({
+    key,
+    label,
+    val: `${val} ${unit}`,
+    seuil: `${th} ${unit}`,
+    time: new Date().toLocaleTimeString('fr-FR')
+  });
+  if (alerts.length > 20) alerts.pop();
+  renderAlerts();
+}
+
+function renderAlerts() {
+  const list = document.getElementById('alerts-list');
+  if (alerts.length === 0) {
+    list.innerHTML = '<div id="no-alerts">Aucune alerte active</div>';
+    return;
+  }
+  list.innerHTML = alerts.slice(0,8).map(a => `
+    <div class="alert-item">
+      <span class="alert-badge status-alert">ALERTE</span>
+      <div>
+        <div>${a.label} : <strong>${a.val}</strong> (seuil : ${a.seuil})</div>
+        <div class="alert-time">${a.time}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─── GRAPHIQUES ───────────────────────────────────────────────
+const CHART_DEFAULTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: { duration: 600 },
+  plugins: { legend: { labels: { color: '#64748b', font: { family: 'Space Mono', size: 10 } } } },
+  scales: {
+    x: {
+      ticks: { color: '#64748b', font: { size: 9 }, maxTicksLimit: 6 },
+      grid:  { color: 'rgba(30,45,69,0.8)' }
+    },
+    y: {
+      ticks: { color: '#64748b', font: { size: 9 } },
+      grid:  { color: 'rgba(30,45,69,0.8)' }
+    }
+  }
+};
+
+function buildCharts(feeds) {
+  const labels = feeds.map(f => {
+    const d = new Date(f.created_at);
+    return `${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+  });
+
+  const get = (field) => feeds.map(f => parseFloat(f[field]) || null);
+
+  // Temp + Humidité
+  destroyChart('th');
+  charts.th = new Chart(document.getElementById('chart-th'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Température (°C)', data: get('field1'),
+          borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)',
+          tension: 0.4, fill: true, pointRadius: 0 },
+        { label: 'Humidité (%)', data: get('field2'),
+          borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,0.05)',
+          tension: 0.4, fill: true, pointRadius: 0,
+          yAxisID: 'y2' }
+      ]
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      scales: {
+        ...CHART_DEFAULTS.scales,
+        y:  { ...CHART_DEFAULTS.scales.y, position: 'left' },
+        y2: { ...CHART_DEFAULTS.scales.y, position: 'right', grid: { display: false } }
+      }
+    }
+  });
+
+  // CO2
+  destroyChart('co2');
+  charts.co2 = new Chart(document.getElementById('chart-co2'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'CO2 (ppm)', data: get('field4'),
+        borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)',
+        tension: 0.4, fill: true, pointRadius: 0
+      }]
+    },
+    options: { ...CHART_DEFAULTS,
+      plugins: {
+        ...CHART_DEFAULTS.plugins,
+        annotation: {}
+      }
+    }
+  });
+
+  // Luminosité
+  destroyChart('lux');
+  charts.lux = new Chart(document.getElementById('chart-lux'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Luminosité (lux)', data: get('field5'),
+        backgroundColor: 'rgba(250,204,21,0.6)',
+        borderColor: '#facc15',
+        borderWidth: 1,
+        borderRadius: 2
+      }]
+    },
+    options: { ...CHART_DEFAULTS }
+  });
+
+  // Indice confort
+  destroyChart('comfort');
+  charts.comfort = new Chart(document.getElementById('chart-comfort'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Indice de confort', data: get('field8'),
+        borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)',
+        tension: 0.4, fill: true, pointRadius: 0
+      }]
+    },
+    options: { ...CHART_DEFAULTS }
+  });
+}
+
+function destroyChart(key) {
+  if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+}
+
+// ─── PÉRIODE ──────────────────────────────────────────────────
+async function setPeriod(hours, btn) {
+  currentPeriod = hours;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  refreshAll();
+  const feeds = await fetchHistory(hours);
+  if (feeds.length) { historyData = feeds; buildCharts(feeds); }
 }
 
-function doExportCSV()  { exportCSV(lastFeeds);  }
-function doExportJSON() { exportJSON(lastFeeds); }
+// ─── CONNEXION STATUS ─────────────────────────────────────────
+function setOnline() {
+  document.getElementById('conn-dot').className   = 'dot';
+  document.getElementById('conn-label').textContent = 'EN LIGNE';
+}
+function setOffline() {
+  document.getElementById('conn-dot').className   = 'dot offline';
+  document.getElementById('conn-label').textContent = 'HORS LIGNE';
+}
 
-// Initialisation
-window.addEventListener('DOMContentLoaded', async () => {
-  charts = initCharts();
-  await refreshAll();
-  setInterval(refreshAll, CONFIG.REFRESH_MS);
-});
+// ─── EXPORT ───────────────────────────────────────────────────
+function exportCSV() {
+  if (!historyData.length) return alert('Pas de données à exporter');
+  const headers = 'Date,Température,Humidité,Pression,CO2,Luminosité,Son,Mouvement,Confort';
+  const rows = historyData.map(f =>
+    `${f.created_at},${f.field1||''},${f.field2||''},${f.field3||''},${f.field4||''},${f.field5||''},${f.field6||''},${f.field7||''},${f.field8||''}`
+  );
+  download('station_iot.csv', [headers, ...rows].join('\n'), 'text/csv');
+}
+
+function exportJSON() {
+  if (!historyData.length) return alert('Pas de données à exporter');
+  download('station_iot.json', JSON.stringify(historyData, null, 2), 'application/json');
+}
+
+function download(filename, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = filename;
+  a.click();
+}
+
+// ─── SEUILS ───────────────────────────────────────────────────
+function saveThresholds() {
+  thresholds.temp = parseFloat(document.getElementById('th-temp').value) || 35;
+  thresholds.hum  = parseFloat(document.getElementById('th-hum').value)  || 30;
+  thresholds.co2  = parseFloat(document.getElementById('th-co2').value)  || 1000;
+  thresholds.lux  = parseFloat(document.getElementById('th-lux').value)  || 100;
+  thresholds.son  = parseFloat(document.getElementById('th-son').value)  || 80;
+  localStorage.setItem('iot_thresholds', JSON.stringify(thresholds));
+  if (lastData) renderCards(lastData);
+  showToast('Seuils enregistrés !');
+}
+
+function loadThresholds() {
+  const saved = localStorage.getItem('iot_thresholds');
+  if (saved) {
+    thresholds = { ...thresholds, ...JSON.parse(saved) };
+    document.getElementById('th-temp').value = thresholds.temp;
+    document.getElementById('th-hum').value  = thresholds.hum;
+    document.getElementById('th-co2').value  = thresholds.co2;
+    document.getElementById('th-lux').value  = thresholds.lux;
+    document.getElementById('th-son').value  = thresholds.son;
+  }
+}
+
+// ─── TOAST ────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.style.cssText = `
+    position:fixed;bottom:2rem;right:2rem;z-index:9999;
+    background:var(--green);color:#fff;
+    padding:0.75rem 1.25rem;border-radius:8px;
+    font-family:var(--font-mono);font-size:0.8rem;
+    animation:slideIn 0.3s ease;
+  `;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ─── REFRESH PRINCIPAL ────────────────────────────────────────
+async function refreshData() {
+  const data = await fetchLast();
+  if (data && data.field1 !== undefined) {
+    lastData = data;
+    setOnline();
+    renderCards(data);
+  } else if (data) {
+    // Données reçues mais champs vides
+    console.warn('[refreshData] Données sans champs:', data);
+    lastData = data;
+    renderCards(data);
+  }
+}
+
+// ─── INITIALISATION ───────────────────────────────────────────
+async function init() {
+  loadThresholds();
+
+  // Afficher état chargement
+  document.getElementById('conn-label').textContent = 'CHARGEMENT...';
+
+  // Données temps réel
+  await refreshData();
+
+  // Historique + graphiques
+  const feeds = await fetchHistory(currentPeriod);
+  if (feeds.length) {
+    historyData = feeds;
+    buildCharts(feeds);
+  }
+
+  // Auto-refresh toutes les 20s
+  setInterval(refreshData, REFRESH_MS);
+}
+
+init();
 </script>
 </body>
 </html>
