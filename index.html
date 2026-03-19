@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard IoT — Station M2 CIO</title>
+  <!-- Bootstrap 5 (responsive — Section 3.4.1 du sujet) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <!-- Chart.js (graphiques interactifs — Section 3.4.1) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ── NAVBAR ────────────────────────────────────────────────── -->
+<nav class="navbar navbar-dark bg-primary px-3">
+  <span class="navbar-brand fw-bold">
+    🌡 Station IoT M2 CIO
+  </span>
+  <div class="d-flex align-items-center gap-3">
+    <span id="status-badge" class="badge bg-secondary">Connexion...</span>
+    <span id="last-update" class="text-white-50 small">—</span>
+  </div>
+</nav>
+
+<!-- ── FILTRES PÉRIODE ───────────────────────────────────────── -->
+<div class="container-fluid px-4 mt-3">
+  <div class="d-flex gap-2 align-items-center flex-wrap mb-3">
+    <span class="text-muted small me-2">Période :</span>
+    <button class="btn btn-sm btn-outline-primary active" onclick="setPeriod('24h', this)">24h</button>
+    <button class="btn btn-sm btn-outline-primary"        onclick="setPeriod('7j',  this)">7 jours</button>
+    <button class="btn btn-sm btn-outline-primary"        onclick="setPeriod('30j', this)">30 jours</button>
+    <div class="ms-auto d-flex gap-2">
+      <button class="btn btn-sm btn-outline-success" onclick="doExportCSV()">⬇ CSV</button>
+      <button class="btn btn-sm btn-outline-info"    onclick="doExportJSON()">⬇ JSON</button>
+      <a class="btn btn-sm btn-outline-secondary"
+         id="ts-public-link"
+         href="#" target="_blank">📊 ThingSpeak</a>
+    </div>
+  </div>
+
+  <!-- ── CARTES CAPTEURS (temps réel) ─────────────────────────── -->
+  <div class="row g-3 mb-4" id="sensor-cards">
+    <div class="col-6 col-md-3">
+      <div class="sensor-card" id="card-temp">
+        <div class="sensor-icon">🌡</div>
+        <div class="sensor-value" id="val-temp">--</div>
+        <div class="sensor-unit">°C</div>
+        <div class="sensor-label">Température</div>
+        <div class="sensor-bar"><div class="sensor-fill" id="bar-temp"></div></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="sensor-card" id="card-hum">
+        <div class="sensor-icon">💧</div>
+        <div class="sensor-value" id="val-hum">--</div>
+        <div class="sensor-unit">%</div>
+        <div class="sensor-label">Humidité</div>
+        <div class="sensor-bar"><div class="sensor-fill" id="bar-hum"></div></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="sensor-card" id="card-co2">
+        <div class="sensor-icon">🌫</div>
+        <div class="sensor-value" id="val-co2">--</div>
+        <div class="sensor-unit">ppm</div>
+        <div class="sensor-label">Qualité Air</div>
+        <div class="sensor-bar"><div class="sensor-fill" id="bar-co2"></div></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="sensor-card comfort-card" id="card-comfort">
+        <div class="sensor-icon">😊</div>
+        <div class="sensor-value" id="val-comfort">--</div>
+        <div class="sensor-unit">/100</div>
+        <div class="sensor-label">Indice Confort</div>
+        <div class="sensor-bar"><div class="sensor-fill" id="bar-comfort"></div></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="sensor-card" id="card-pres">
+        <div class="sensor-icon">🔵</div>
+        <div class="sensor-value" id="val-pres">--</div>
+        <div class="sensor-unit">hPa</div>
+        <div class="sensor-label">Pression</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="sensor-card" id="card-light">
+        <div class="sensor-icon">💡</div>
+        <div class="sensor-value" id="val-light">--</div>
+        <div class="sensor-unit">lux</div>
+        <div class="sensor-label">Luminosité</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="sensor-card" id="card-sound">
+        <div class="sensor-icon">🔊</div>
+        <div class="sensor-value" id="val-sound">--</div>
+        <div class="sensor-unit">dB</div>
+        <div class="sensor-label">Son</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="sensor-card" id="card-motion">
+        <div class="sensor-icon">👁</div>
+        <div class="sensor-value" id="val-motion">--</div>
+        <div class="sensor-unit"></div>
+        <div class="sensor-label">Mouvement</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── GRAPHIQUES ────────────────────────────────────────────── -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+      <div class="chart-card">
+        <div class="chart-title">Température & Humidité</div>
+        <canvas id="chart-temp-hum" height="200"></canvas>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="chart-card">
+        <div class="chart-title">Qualité de l'Air (CO2)</div>
+        <canvas id="chart-co2" height="200"></canvas>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="chart-card">
+        <div class="chart-title">Luminosité & Son</div>
+        <canvas id="chart-light-sound" height="200"></canvas>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="chart-card">
+        <div class="chart-title">Indice de Confort (tendance)</div>
+        <canvas id="chart-comfort" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ALERTES ───────────────────────────────────────────────── -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="alert-panel">
+        <div class="alert-panel-title">⚠ Alertes actives</div>
+        <div id="alerts-list" class="alerts-list">
+          <span class="text-muted small">Chargement...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── COMPARAISON ───────────────────────────────────────────── -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="compare-panel">
+        <div class="compare-title">📊 Actuelles vs Moyennes historiques</div>
+        <table class="table table-sm compare-table">
+          <thead><tr>
+            <th>Capteur</th><th>Valeur actuelle</th><th>Moyenne période</th><th>Écart</th>
+          </tr></thead>
+          <tbody id="compare-tbody">
+            <tr><td colspan="4" class="text-muted text-center small">Chargement...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<footer class="text-center text-muted small py-3 border-top mt-4">
+  M2 CIO — Station IoT Multi-Capteurs | Dr. ATTA A. Ferdinand | 2025-2026
+  | <a href="https://thingspeak.com" target="_blank">ThingSpeak</a>
+  | <a href="https://make.com" target="_blank">Make.com</a>
+</footer>
+
+<!-- Scripts -->
+<script src="config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/alerts.js"></script>
+<script>
+// ================================================================
+// INITIALISATION ET BOUCLE DE RAFRAÎCHISSEMENT
+// ================================================================
+let currentPeriod = '24h';
+let lastFeeds     = [];
+let charts        = {};
+
+// Lien public ThingSpeak
+document.getElementById('ts-public-link').href =
+  `https://thingspeak.com/channels/${CONFIG.CHANNEL_ID}`;
+
+async function refreshAll() {
+  // 1. Dernière valeur (temps réel)
+  const last = await API.getLast();
+  if (last) {
+    const d = API.parseEntry(last);
+    updateCards(d);
+    checkAlerts(d);
+    document.getElementById('last-update').textContent =
+      'Mis à jour : ' + d.time.toLocaleTimeString('fr-FR');
+    document.getElementById('status-badge').className = 'badge bg-success';
+    document.getElementById('status-badge').textContent = 'Connecté';
+  } else {
+    document.getElementById('status-badge').className = 'badge bg-danger';
+    document.getElementById('status-badge').textContent = 'Hors ligne';
+  }
+
+  // 2. Historique pour graphiques et comparaison
+  const hist = await API.getForPeriod(currentPeriod);
+  if (hist && hist.feeds) {
+    lastFeeds = hist.feeds;
+    updateCharts(hist.feeds, charts);
+    updateComparison(hist.feeds);
+  }
+}
+
+function setPeriod(period, btn) {
+  currentPeriod = period;
+  document.querySelectorAll('.btn-outline-primary').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  refreshAll();
+}
+
+function doExportCSV()  { exportCSV(lastFeeds);  }
+function doExportJSON() { exportJSON(lastFeeds); }
+
+// Initialisation
+window.addEventListener('DOMContentLoaded', async () => {
+  charts = initCharts();
+  await refreshAll();
+  setInterval(refreshAll, CONFIG.REFRESH_MS);
+});
+</script>
+</body>
+</html>
